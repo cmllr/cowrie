@@ -14,7 +14,7 @@ def playlog(fd, settings):
     currtty, prevtime, prefdir = 0, 0, 0
 
     color = None
-
+    dumpsSeen = 0
     while 1:
         try:
             (op, tty, length, dir, sec, usec) = \
@@ -53,7 +53,19 @@ def playlog(fd, settings):
                 prevtime = curtime
                 if settings['colorify'] and color:
                     sys.stdout.write(color)
-                sys.stdout.write(data.decode('UTF-8'))
+                # TODO: Dump binary foo
+                try: 
+                    sys.stdout.write(data.decode('UTF-8'))
+                except UnicodeDecodeError:     
+                    if settings['dumpfolder'] is not None: 
+                        if os.path.isdir(settings['dumpfolder']):
+                            fileName = "bin"+str(dumpsSeen)+".bin"
+                            binDump = open(os.path.join(settings['dumpfolder'],fileName) ,"wb")
+                            binDump.write(data)
+                            binDump.close()
+                            dumpsSeen+=1
+                        else:
+                            raise Exception("Dump folder not existing")
                 if settings['colorify'] and color:
                     sys.stdout.write('\033[0m')
                     color = None
@@ -63,7 +75,7 @@ def playlog(fd, settings):
 
 def help(brief = 0):
 
-    print('Usage: %s [-bfhi] [-m secs] [-w file] <tty-log-file> <tty-log-file>...\n' % \
+    print('Usage: %s [-bfhi] [-m secs] [-d dump-folder] [-w file] <tty-log-file> <tty-log-file>...\n' % \
         os.path.basename(sys.argv[0]))
 
     if not brief:
@@ -74,6 +86,7 @@ def help(brief = 0):
         print('  -i             show the input stream instead of output')
         print('  -b             show both input and output streams')
         print('  -c             colorify the output stream based on what streams are being received')
+        print('  -d <folder>    Dumps non-utf data (like binary) into the given folder')
         print('  -h             display this help\n')
 
     sys.exit(1)
@@ -86,10 +99,11 @@ if __name__ == '__main__':
         'input_only':   0,
         'both_dirs':    0,
         'colorify':     0,
+        'dumpfolder':    None
         }
 
     try:
-        optlist, args = getopt.getopt(sys.argv[1:], 'fhibcm:w:', ['help'])
+        optlist, args = getopt.getopt(sys.argv[1:], 'fhibcm:d:', ['help'])
     except getopt.GetoptError as error:
         print('Error: %s\n' % error)
         help()
@@ -97,6 +111,7 @@ if __name__ == '__main__':
     for o, a in optlist:
         if o == '-f': settings['tail'] = 1
         elif o == '-m': settings['maxdelay'] = float(a) # takes decimals
+        elif o == '-d': settings['dumpfolder'] = a
         elif o == '-i': settings['input_only'] = 1
         elif o == '-b': settings['both_dirs'] = 1
         elif o in ['-h', '--help']: help()
